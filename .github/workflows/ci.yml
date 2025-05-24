@@ -24,6 +24,7 @@ jobs:
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }})
           else
             CHANGED=$(git diff --name-only HEAD~1)
+          fi
           echo "Changed files: $CHANGED"
           # Extract unique service directories
           SERVICES=""
