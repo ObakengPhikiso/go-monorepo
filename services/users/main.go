@@ -96,12 +96,87 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(u)
 }
 
+func updateUser(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/users/"):]
+	var u User
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("invalid body"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	update := bson.M{"$set": bson.M{"name": u.Name}}
+	res, err := usersCollection.UpdateOne(ctx, bson.M{"id": id}, update)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
+	if res.MatchedCount == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("updated"))
+}
+
+func deleteUser(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/users/"):]
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := usersCollection.DeleteOne(ctx, bson.M{"id": id})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
+	if res.DeletedCount == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("deleted"))
+}
+
+func searchUsers(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("missing name param"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cursor, err := usersCollection.Find(ctx, bson.M{"name": bson.M{"$regex": name, "$options": "i"}})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
+	var users []User
+	if err := cursor.All(ctx, &users); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
+
 func main() {
 	usersCollection = getMongoCollection()
+
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			if r.URL.Query().Get("name") != "" {
+				searchUsers(w, r)
+				return
+			}
 			getUsers(w, r)
 		case http.MethodPost:
 			createUser(w, r)
@@ -110,11 +185,16 @@ func main() {
 		}
 	})
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			getUser(w, r)
-			return
+		case http.MethodPut:
+			updateUser(w, r)
+		case http.MethodDelete:
+			deleteUser(w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
 	fmt.Println("[users] Service running on :8080")
 	fmt.Println("Shared lib version:", shared.Version())
