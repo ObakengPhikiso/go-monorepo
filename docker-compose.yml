@@ -41,16 +41,32 @@ services:
       mongo:
         condition: service_healthy
 
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      - JWT_SECRET=your-256-bit-secret
+      - AUTH_DB_URL=mongodb://mongo:27017
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   api-gateway:
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
     ports:
       - "8088:8088"
+    environment:
+      - JWT_SECRET=your-256-bit-secret
     depends_on:
       - users
       - orders
       - payments
+      - auth
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8088/health"]
       interval: 10s

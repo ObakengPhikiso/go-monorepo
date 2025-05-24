@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.20-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 # Copy go.mod and go.sum for dependency resolution
 COPY services/payments/go.mod ./

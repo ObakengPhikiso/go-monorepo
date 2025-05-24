@@ -1,5 +1,6 @@
 # Build stage
-FROM golang:1.20-alpine AS builder
+FROM golang:1.24-alpine AS builder
+RUN apk add --no-cache git
 WORKDIR /app
 # Copy go.mod and go.sum for dependency resolution
 COPY services/api-gateway/go.mod ./

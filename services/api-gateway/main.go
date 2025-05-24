@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+
+	"github.com/ObakengPhikiso/monorepo/libs/shared"
 )
 
 // Service discovery: static lists of backend addresses
@@ -13,10 +15,12 @@ var (
 	userBackends    = []string{"http://users:8080"}
 	orderBackends   = []string{"http://orders:8080"}
 	paymentBackends = []string{"http://payments:8080"}
+	authBackends    = []string{"http://auth:8084"}
 
 	userIdx    uint32
 	orderIdx   uint32
 	paymentIdx uint32
+	authIdx    uint32
 )
 
 func pickBackend(backends []string, idx *uint32) string {
@@ -28,8 +32,43 @@ func pickBackend(backends []string, idx *uint32) string {
 	return backends[i%n]
 }
 
-func proxy(backends []string, idx *uint32) http.HandlerFunc {
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for swagger and auth endpoints
+		if r.URL.Path == "/swagger" || r.URL.Path == "/swagger.yaml" || r.URL.Path == "/auth/login" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		token := r.Header.Get("Authorization")
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("no token provided"))
+			return
+		}
+
+		// Remove "Bearer " prefix if present
+		if len(token) > 7 && token[:7] == "Bearer " {
+			token = token[7:]
+		}
+
+		// Validate token
+		claims, err := shared.ValidateJWT(token)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		// Add user info to request context
+		r.Header.Set("X-User-ID", claims.UserID)
+		r.Header.Set("X-Username", claims.Username)
+		next.ServeHTTP(w, r)
+	}
+}
+
+func proxy(backends []string, idx *uint32) http.HandlerFunc {
+	return authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		target := pickBackend(backends, idx)
 		if target == "" {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -61,10 +100,64 @@ func proxy(backends []string, idx *uint32) http.HandlerFunc {
 		}
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
+	})
+}
+
+func checkServiceHealth(url string) bool {
+	resp, err := http.Get(url + "/health")
+	if err != nil {
+		return false
 	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	healthy := true
+	status := map[string]bool{
+		"users":    checkServiceHealth(userBackends[0]),
+		"orders":   checkServiceHealth(orderBackends[0]),
+		"payments": checkServiceHealth(paymentBackends[0]),
+		"auth":     checkServiceHealth(authBackends[0]),
+	}
+
+	// If any service is unhealthy, set overall health to false
+	for _, isHealthy := range status {
+		if !isHealthy {
+			healthy = false
+			break
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if !healthy {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+
+	// Convert status map to JSON
+	json := "{"
+	for service, isHealthy := range status {
+		json += `"` + service + `":` + map[bool]string{true: "true", false: "false"}[isHealthy] + ","
+	}
+	json = json[:len(json)-1] + "}" // Remove trailing comma and close
+	w.Write([]byte(json))
 }
 
 func main() {
+	// Health endpoint
+	http.HandleFunc("/health", healthHandler)
+
+	// Auth endpoints
+	http.HandleFunc("/auth/register", proxy(authBackends, &authIdx))
+	http.HandleFunc("/auth/login", proxy(authBackends, &authIdx))
+	http.HandleFunc("/auth/validate", proxy(authBackends, &authIdx))
+
+	// Protected endpoints
 	http.HandleFunc("/users", proxy(userBackends, &userIdx))
 	http.HandleFunc("/users/", proxy(userBackends, &userIdx))
 	http.HandleFunc("/orders", proxy(orderBackends, &orderIdx))

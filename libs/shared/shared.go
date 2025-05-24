@@ -3,8 +3,12 @@ package shared
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log"
 	"os"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func Version() string {
@@ -32,4 +36,54 @@ func GetEnv(key, fallback string) string {
 // Logger is a simple wrapper for log.Println
 func Logger(msg string, args ...interface{}) {
 	log.Printf(msg, args...)
+}
+
+var (
+	ErrInvalidToken = errors.New("invalid token")
+	ErrExpiredToken = errors.New("token has expired")
+)
+
+type JWTClaims struct {
+	jwt.RegisteredClaims
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+}
+
+// GenerateJWT creates a new JWT token for the given user
+func GenerateJWT(userID, username string) (string, error) {
+	secret := GetEnv("JWT_SECRET", "your-256-bit-secret")
+	claims := JWTClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		UserID:   userID,
+		Username: username,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+// ValidateJWT validates the given token and returns the claims
+func ValidateJWT(tokenString string) (*JWTClaims, error) {
+	secret := GetEnv("JWT_SECRET", "your-256-bit-secret")
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	if claims.ExpiresAt.Before(time.Now()) {
+		return nil, ErrExpiredToken
+	}
+
+	return claims, nil
 }

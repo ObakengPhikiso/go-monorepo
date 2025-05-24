@@ -2,9 +2,41 @@ openapi: 3.0.3
 info:
   title: Go Microservices Monorepo API
   version: 1.0.0
-  description: OpenAPI spec for API Gateway aggregating users, orders, and payments services.
+  description: OpenAPI spec for API Gateway aggregating users, orders, and payments services with JWT authentication.
 servers:
   - url: http://localhost:8088
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+security:
+  - BearerAuth: []
+
 paths:
   /users:
     get:
@@ -108,3 +140,84 @@ paths:
           description: Payment object
         '404':
           description: Not found
+  /auth/login:
+    post:
+      security: []  # No auth required for login
+      summary: Login to get JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/validate:
+    post:
+      summary: Validate JWT token
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  username:
+                    type: string
+        '401':
+          description: Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/register:
+    post:
+      security: []  # No auth required for registration
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
