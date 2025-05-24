@@ -1,0 +1,60 @@
+version: "3.9"
+services:
+  users:
+    build: ./services/users
+    ports:
+      - "8081:8080"
+    environment:
+      - USERS_DB_URL=mongodb://mongo:27017/users
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+  orders:
+    build: ./services/orders
+    ports:
+      - "8082:8080"
+    environment:
+      - ORDERS_DB_URL=mongodb://mongo:27017/orders
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  payments:
+    build: ./services/payments
+    ports:
+      - "8083:8080"
+    environment:
+      - PAYMENTS_DB_URL=mongodb://mongo:27017/payments
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8088:8088"
+    depends_on:
+      - users
+      - orders
+      - payments
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+  mongo:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

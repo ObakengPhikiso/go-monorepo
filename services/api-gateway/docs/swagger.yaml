@@ -1,0 +1,110 @@
+openapi: 3.0.3
+info:
+  title: Go Microservices Monorepo API
+  version: 1.0.0
+  description: OpenAPI spec for API Gateway aggregating users, orders, and payments services.
+servers:
+  - url: http://localhost:8088
+paths:
+  /users:
+    get:
+      summary: List users
+      responses:
+        '200':
+          description: List of users
+    post:
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Created user
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User object
+        '404':
+          description: Not found
+  /orders:
+    get:
+      summary: List orders
+      responses:
+        '200':
+          description: List of orders
+    post:
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: string
+      responses:
+        '200':
+          description: Created order
+  /orders/{id}:
+    get:
+      summary: Get order by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order object
+        '404':
+          description: Not found
+  /payments:
+    get:
+      summary: List payments
+      responses:
+        '200':
+          description: List of payments
+    post:
+      summary: Create a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Created payment
+  /payments/{id}:
+    get:
+      summary: Get payment by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment object
+        '404':
+          description: Not found
