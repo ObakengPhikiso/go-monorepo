@@ -12,6 +12,8 @@ jobs:
       affected: ${{ steps.set-affected.outputs.affected }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Detect affected services
         id: set-affected
         run: |
@@ -21,8 +23,7 @@ jobs:
             git fetch origin ${{ github.base_ref }}
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }})
           else
-            CHANGED=$(git diff --name-only HEAD^)
-          fi
+            CHANGED=$(git diff --name-only HEAD~1)
           echo "Changed files: $CHANGED"
           # Extract unique service directories
           SERVICES=""
