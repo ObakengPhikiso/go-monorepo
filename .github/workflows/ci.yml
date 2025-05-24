@@ -44,7 +44,7 @@ jobs:
     if: needs.detect-affected-services.outputs.affected != ''
     strategy:
       matrix:
-        service: [${{ needs.detect-affected-services.outputs.affected }}]
+        service: ${{ fromJson('["' + join(needs.detect-affected-services.outputs.affected, '","') + '"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
