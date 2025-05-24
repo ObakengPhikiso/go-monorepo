@@ -1,7 +1,13 @@
 # Build stage
 FROM golang:1.20-alpine AS builder
 WORKDIR /app
-COPY . .
+# Copy go.mod and go.sum for dependency resolution
+COPY services/users/go.mod ./
+COPY services/users/go.sum ./
+# Copy shared library
+COPY libs/shared/ ../libs/shared/
+# Copy service source
+COPY services/users/ .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o users .
 

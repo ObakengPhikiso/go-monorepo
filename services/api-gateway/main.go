@@ -5,10 +5,37 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 )
 
-func proxy(target string) http.HandlerFunc {
+// Service discovery: static lists of backend addresses
+var (
+	userBackends    = []string{"http://users:8080"}
+	orderBackends   = []string{"http://orders:8080"}
+	paymentBackends = []string{"http://payments:8080"}
+
+	userIdx    uint32
+	orderIdx   uint32
+	paymentIdx uint32
+)
+
+func pickBackend(backends []string, idx *uint32) string {
+	n := uint32(len(backends))
+	if n == 0 {
+		return ""
+	}
+	i := atomic.AddUint32(idx, 1)
+	return backends[i%n]
+}
+
+func proxy(backends []string, idx *uint32) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		target := pickBackend(backends, idx)
+		if target == "" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("no backend available"))
+			return
+		}
 		url := target + r.URL.Path
 		if r.URL.RawQuery != "" {
 			url += "?" + r.URL.RawQuery
@@ -38,12 +65,12 @@ func proxy(target string) http.HandlerFunc {
 }
 
 func main() {
-	http.HandleFunc("/users", proxy("http://users:8080"))
-	http.HandleFunc("/users/", proxy("http://users:8080"))
-	http.HandleFunc("/orders", proxy("http://orders:8080"))
-	http.HandleFunc("/orders/", proxy("http://orders:8080"))
-	http.HandleFunc("/payments", proxy("http://payments:8080"))
-	http.HandleFunc("/payments/", proxy("http://payments:8080"))
+	http.HandleFunc("/users", proxy(userBackends, &userIdx))
+	http.HandleFunc("/users/", proxy(userBackends, &userIdx))
+	http.HandleFunc("/orders", proxy(orderBackends, &orderIdx))
+	http.HandleFunc("/orders/", proxy(orderBackends, &orderIdx))
+	http.HandleFunc("/payments", proxy(paymentBackends, &paymentIdx))
+	http.HandleFunc("/payments/", proxy(paymentBackends, &paymentIdx))
 
 	http.HandleFunc("/swagger.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")

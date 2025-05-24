@@ -4,7 +4,7 @@
 
 - **Start all services:**  
   ```sh
-  docker-compose up --build
+  docker compose up --build -d
   ```
 - **Run a single service:**  
   ```sh

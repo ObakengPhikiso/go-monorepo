@@ -1,7 +1,9 @@
 version: "3.9"
 services:
   users:
-    build: ./services/users
+    build:
+      context: .
+      dockerfile: services/users/Dockerfile
     ports:
       - "8081:8080"
     environment:
@@ -16,7 +18,9 @@ services:
       retries: 3
 
   orders:
-    build: ./services/orders
+    build:
+      context: .
+      dockerfile: services/orders/Dockerfile
     ports:
       - "8082:8080"
     environment:
@@ -26,7 +30,9 @@ services:
         condition: service_healthy
 
   payments:
-    build: ./services/payments
+    build:
+      context: .
+      dockerfile: services/payments/Dockerfile
     ports:
       - "8083:8080"
     environment:
@@ -36,7 +42,9 @@ services:
         condition: service_healthy
 
   api-gateway:
-    build: ./services/api-gateway
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
     ports:
       - "8088:8088"
     depends_on:

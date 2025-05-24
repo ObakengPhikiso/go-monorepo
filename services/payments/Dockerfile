@@ -1,7 +1,13 @@
 # Build stage
 FROM golang:1.20-alpine AS builder
 WORKDIR /app
-COPY . .
+# Copy go.mod and go.sum for dependency resolution
+COPY services/payments/go.mod ./
+COPY services/payments/go.sum ./
+# Copy shared library
+COPY libs/shared/ ../libs/shared/
+# Copy service source
+COPY services/payments/ .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o payments .
 
