@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/ObakengPhikiso/monorepo/libs/shared"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type User struct {
@@ -14,9 +19,17 @@ type User struct {
 	Name string `json:"name"`
 }
 
-var users = []User{
-	{ID: shared.GenerateID(), Name: "Alice"},
-	{ID: shared.GenerateID(), Name: "Bob"},
+var usersCollection *mongo.Collection
+
+func getMongoCollection() *mongo.Collection {
+	dbURL := shared.GetEnv("USERS_DB_URL", "mongodb://localhost:27017/users")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURL))
+	if err != nil {
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+	return client.Database("users").Collection("users")
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -25,21 +38,41 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUsers(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cursor, err := usersCollection.Find(ctx, bson.M{})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
+	var users []User
+	if err := cursor.All(ctx, &users); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/users/"):]
-	for _, u := range users {
-		if u.ID == id {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(u)
-			return
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var u User
+	err := usersCollection.FindOne(ctx, bson.M{"id": id}).Decode(&u)
+	if err == mongo.ErrNoDocuments {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
 	}
-	w.WriteHeader(http.StatusNotFound)
-	w.Write([]byte("not found"))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(u)
 }
 
 func createUser(w http.ResponseWriter, r *http.Request) {
@@ -50,13 +83,21 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.ID = shared.GenerateID()
-	users = append(users, u)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := usersCollection.InsertOne(ctx, u)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("db error"))
+		return
+	}
 	shared.Logger("Created user: %+v", u)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(u)
 }
 
 func main() {
+	usersCollection = getMongoCollection()
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -75,8 +116,6 @@ func main() {
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
-	dbURL := shared.GetEnv("USERS_DB_URL", "mongodb://localhost:27017/users")
-	shared.Logger("[users] Using DB: %s", dbURL)
 	fmt.Println("[users] Service running on :8080")
 	fmt.Println("Shared lib version:", shared.Version())
 	log.Fatal(http.ListenAndServe(":8080", nil))
