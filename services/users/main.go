@@ -93,7 +93,10 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	}
 	shared.Logger("Created user: %+v", u)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(u)
+	err = json.NewEncoder(w).Encode(u)
+	if err != nil {
+		return
+	}
 }
 
 func updateUser(w http.ResponseWriter, r *http.Request) {
