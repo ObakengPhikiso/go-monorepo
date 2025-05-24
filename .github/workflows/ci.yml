@@ -1,80 +1,56 @@
-name: CI/CD
+name: Simple CI
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'services/**'
-      - 'libs/shared/**'
-      - '.github/workflows/**'
-      - 'go.work'
   pull_request:
 
 jobs:
-  detect-changes:
+  detect-affected-services:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      affected: ${{ steps.set-affected.outputs.affected }}
     steps:
       - uses: actions/checkout@v4
-      - id: set-matrix
+      - name: Detect affected services
+        id: set-affected
         run: |
-          changed=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^services/' | cut -d/ -f2 | sort | uniq | jq -R . | jq -s .)
-          echo "matrix={\"service\":$changed}" >> $GITHUB_OUTPUT
+          echo "Detecting changed services..."
+          # Get changed files between HEAD and base (for PRs) or last commit (for push)
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }})
+          else
+            CHANGED=$(git diff --name-only HEAD^)
+          fi
+          echo "Changed files: $CHANGED"
+          # Extract unique service directories
+          SERVICES=""
+          for file in $CHANGED; do
+            if [[ $file == services/*/* ]]; then
+              service=$(echo $file | cut -d'/' -f2)
+              SERVICES+="$service "
+            fi
+          done
+          # Remove duplicates
+          SERVICES=$(echo $SERVICES | tr ' ' '\n' | sort -u | tr '\n' ' ')
+          SERVICES=$(echo $SERVICES | xargs) # trim
+          echo "Affected services: $SERVICES"
+          echo "affected=$SERVICES" >> $GITHUB_OUTPUT
 
-  build-and-push:
-    needs: detect-changes
+  build:
+    needs: detect-affected-services
     runs-on: ubuntu-latest
-    if: ${{ needs.detect-changes.outputs.matrix != '{}' && fromJson(needs.detect-changes.outputs.matrix).service[0] != null }}
+    if: needs.detect-affected-services.outputs.affected != ''
     strategy:
-      matrix: ${{fromJson(needs.detect-changes.outputs.matrix)}}
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}/${{ matrix.service }}
+      matrix:
+        service: [${{ needs.detect-affected-services.outputs.affected }}]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Build
+      - name: Build affected service
         run: |
           cd services/${{ matrix.service }}
-          go build -o ${{ matrix.service }} .
-      - name: Build Docker image
-        run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} ./services/${{ matrix.service }}
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Push Docker image
-        run: |
-          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
-      - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          npm install -g railway
-          railway up --service ${{ matrix.service }}
-
-  tag:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Bump version and tag
-        run: |
-          latest_tag=$(git describe --tags --abbrev=0 || echo "v0.0.0")
-          new_tag=$(echo $latest_tag | awk -F. -v OFS=. '{$NF++;print}')
-          git tag $new_tag
-          git push origin $new_tag
+          go build -v .
