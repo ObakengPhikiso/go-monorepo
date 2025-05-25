@@ -34,11 +34,12 @@ jobs:
               SERVICES+="$service "
             fi
           done
-          # Remove duplicates
+          # Remove duplicates and output as JSON array
           SERVICES=$(echo $SERVICES | tr ' ' '\n' | sort -u | tr '\n' ' ')
           SERVICES=$(echo $SERVICES | xargs) # trim
           echo "Affected services: $SERVICES"
-          echo "affected=$SERVICES" >> $GITHUB_OUTPUT
+          SERVICES_JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)
+          echo "affected=$SERVICES_JSON" >> $GITHUB_OUTPUT
 
   build:
     needs: detect-affected-services
@@ -46,7 +47,7 @@ jobs:
     if: needs.detect-affected-services.outputs.affected != ''
     strategy:
       matrix:
-        service: ${{ fromJson(format('[{0}]', needs.detect-affected-services.outputs.affected)) }}
+        service: ${{ fromJson(needs.detect-affected-services.outputs.affected) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
