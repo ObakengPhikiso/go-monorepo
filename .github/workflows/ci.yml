@@ -32,7 +32,10 @@ jobs:
           for file in $CHANGED; do
             if [[ $file == services/*/* ]]; then
               service=$(echo $file | cut -d'/' -f2)
-              SERVICES+="$service "
+              # Only include service if directory still exists
+              if [ -d "services/$service" ]; then
+                SERVICES+="$service "
+              fi
             fi
           done
           
@@ -64,5 +67,10 @@ jobs:
           go-version: '1.24'
       - name: Build affected service
         run: |
+          # Check if service directory exists
+          if [ ! -d "services/${{ matrix.service }}" ]; then
+            echo "Service directory services/${{ matrix.service }} no longer exists, skipping build"
+            exit 0
+          fi
           cd services/${{ matrix.service }}
           go build -v .
