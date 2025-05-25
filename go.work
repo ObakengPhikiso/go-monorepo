@@ -1,7 +1,6 @@
 go 1.24
 
 use (
-    ./services/users
     ./services/orders
     ./services/payments
     ./services/auth
