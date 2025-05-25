@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Go Microservices Monorepo API
   version: 1.0.0
-  description: OpenAPI spec for API Gateway aggregating users, orders, and payments services with JWT authentication.
+  description: OpenAPI spec for API Gateway aggregating auth, orders, and payments services.
 servers:
   - url: http://localhost:8088
 
@@ -28,6 +28,31 @@ components:
       properties:
         token:
           type: string
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - password
+        - name
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        name:
+          type: string
+        created:
+          type: string
+          format: date-time
     Error:
       type: object
       properties:
@@ -38,12 +63,50 @@ security:
   - BearerAuth: []
 
 paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: User registered successfully
+  /auth/login:
+    post:
+      summary: Login with username and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
   /users:
     get:
-      summary: List users
+      summary: List all users
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
     post:
       summary: Create a user
       requestBody:
@@ -61,6 +124,8 @@ paths:
   /users/{id}:
     get:
       summary: Get user by ID
+      security:
+        - BearerAuth: []
       parameters:
         - in: path
           name: id
@@ -69,9 +134,50 @@ paths:
             type: string
       responses:
         '200':
-          description: User object
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
         '404':
           description: Not found
+    put:
+      summary: Update user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                username:
+                  type: string
+      responses:
+        '200':
+          description: User updated successfully
+    delete:
+      summary: Delete user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted successfully
   /orders:
     get:
       summary: List orders
@@ -197,10 +303,13 @@ paths:
               required:
                 - username
                 - password
+                - name
               properties:
                 username:
                   type: string
                 password:
+                  type: string
+                name:
                   type: string
       responses:
         '201':

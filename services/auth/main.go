@@ -9,8 +9,8 @@ import (
 
 	"log"
 
-	"github.com/gin-gonic/gin"
 	"github.com/ObakengPhikiso/monorepo/libs/shared"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -29,6 +29,7 @@ type User struct {
 	Username      string    `json:"username" binding:"required" bson:"username"`
 	Password      string    `json:"password" binding:"required" bson:"-"`
 	Hash          string    `json:"-" bson:"password"`
+	Name          string    `json:"name" bson:"name"`
 	Created       time.Time `json:"created" bson:"created"`
 	LoginAttempts int       `json:"-" bson:"login_attempts"`
 	LastAttempt   time.Time `json:"-" bson:"last_attempt"`
@@ -216,6 +217,117 @@ func handleValidate(c *gin.Context) {
 	})
 }
 
+func handleGetUsers(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cursor, err := usersCollection.Find(ctx, bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
+		return
+	}
+
+	var users []User
+	if err := cursor.All(ctx, &users); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode users"})
+		return
+	}
+
+	// Don't expose sensitive information
+	for i := range users {
+		users[i].Password = ""
+		users[i].Hash = ""
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func handleGetUser(c *gin.Context) {
+	id := c.Param("id")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var user User
+	err := usersCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	if err == mongo.ErrNoDocuments {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+		return
+	}
+
+	// Don't expose sensitive information
+	user.Password = ""
+	user.Hash = ""
+
+	c.JSON(http.StatusOK, user)
+}
+
+func handleUpdateUser(c *gin.Context) {
+	id := c.Param("id")
+
+	var update struct {
+		Name     string `json:"name"`
+		Username string `json:"username"`
+	}
+
+	if err := c.ShouldBindJSON(&update); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	updateDoc := bson.M{}
+	if update.Name != "" {
+		updateDoc["name"] = update.Name
+	}
+	if update.Username != "" {
+		updateDoc["username"] = update.Username
+	}
+
+	result, err := usersCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": updateDoc},
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user updated successfully"})
+}
+
+func handleDeleteUser(c *gin.Context) {
+	id := c.Param("id")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := usersCollection.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+		return
+	}
+
+	if result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
+}
+
 func healthCheck(c *gin.Context) {
 	var status string
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -239,20 +351,69 @@ func healthCheck(c *gin.Context) {
 	})
 }
 
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			c.Abort()
+			return
+		}
+
+		// Extract the token from the Authorization header
+		// Format: "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
+			c.Abort()
+			return
+		}
+
+		token := parts[1]
+
+		// Verify the token (implement your token verification logic here)
+		// This is a placeholder - implement proper JWT verification
+		if !isValidToken(token) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func isValidToken(token string) bool {
+	// Implement your token validation logic here
+	// This should verify the JWT signature and expiration
+	// For now, returning true as a placeholder
+	return true
+}
+
 func main() {
 	if err := connectDB(); err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
 	r := gin.Default()
 
+	// Auth endpoints
+	r.POST("/auth/register", handleRegister)
+	r.POST("/auth/login", handleLogin)
+
+	// User management endpoints
+	authenticated := r.Group("/users")
+	authenticated.Use(authMiddleware())
+	{
+		authenticated.GET("", handleGetUsers)
+		authenticated.GET("/:id", handleGetUser)
+		authenticated.PUT("/:id", handleUpdateUser)
+		authenticated.DELETE("/:id", handleDeleteUser)
+	}
+
 	// Health check endpoint
 	r.GET("/health", healthCheck)
 
-	r.POST("/register", handleRegister)
-	r.POST("/login", handleLogin)
-	r.POST("/validate", handleValidate)
-
-	port := shared.GetEnv("PORT", "8084")
+	port := shared.GetEnv("PORT", "8080")
 	r.Run(":" + port)
 }
