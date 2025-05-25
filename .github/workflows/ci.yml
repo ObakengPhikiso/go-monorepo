@@ -53,7 +53,7 @@ jobs:
   build:
     needs: detect-affected-services
     runs-on: ubuntu-latest
-    if: needs.detect-affected-services.outputs.affected != ''
+    if: needs.detect-affected-services.outputs.affected != '[]'
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-affected-services.outputs.affected) }}
