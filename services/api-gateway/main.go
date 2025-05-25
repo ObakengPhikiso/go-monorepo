@@ -56,7 +56,10 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		claims, err := shared.ValidateJWT(token)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(err.Error()))
+			_, err := w.Write([]byte(err.Error()))
+			if err != nil {
+				return
+			}
 			return
 		}
 
