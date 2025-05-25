@@ -34,16 +34,19 @@ func pickBackend(backends []string, idx *uint32) string {
 
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for swagger and auth endpoints
-		if r.URL.Path == "/swagger" || r.URL.Path == "/swagger.yaml" || r.URL.Path == "/auth/login" {
+		// Skip auth for health checks, swagger docs, and auth endpoints
+		if r.URL.Path == "/health" ||
+			r.URL.Path == "/swagger" ||
+			r.URL.Path == "/swagger.yaml" ||
+			r.URL.Path == "/auth/login" ||
+			r.URL.Path == "/auth/register" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
 		token := r.Header.Get("Authorization")
 		if token == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("no token provided"))
+			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
 			return
 		}
 
@@ -55,17 +58,16 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Validate token
 		claims, err := shared.ValidateJWT(token)
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			_, err := w.Write([]byte(err.Error()))
-			if err != nil {
-				return
-			}
+			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
 			return
 		}
 
-		// Add user info to request context
+		// Add user info to request headers for downstream services
 		r.Header.Set("X-User-ID", claims.UserID)
 		r.Header.Set("X-Username", claims.Username)
+		r.Header.Set("X-Authenticated", "true")
+
+		// Preserve the original Authorization header for any services that might need it
 		next.ServeHTTP(w, r)
 	}
 }
