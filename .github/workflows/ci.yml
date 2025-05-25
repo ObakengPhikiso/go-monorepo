@@ -26,6 +26,7 @@ jobs:
             CHANGED=$(git diff --name-only HEAD~1)
           fi
           echo "Changed files: $CHANGED"
+          
           # Extract unique service directories
           SERVICES=""
           for file in $CHANGED; do
@@ -34,12 +35,19 @@ jobs:
               SERVICES+="$service "
             fi
           done
-          # Remove duplicates and output as JSON array
+          
+          # Remove duplicates and handle empty case
           SERVICES=$(echo $SERVICES | tr ' ' '\n' | sort -u | tr '\n' ' ')
           SERVICES=$(echo $SERVICES | xargs) # trim
-          echo "Affected services: $SERVICES"
-          SERVICES_JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)
-          echo "affected=$SERVICES_JSON" >> $GITHUB_OUTPUT
+          
+          if [ -z "$SERVICES" ]; then
+            echo "No services were affected"
+            echo "affected=[]" >> $GITHUB_OUTPUT
+          else
+            echo "Affected services: $SERVICES"
+            SERVICES_JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)
+            echo "affected=$SERVICES_JSON" >> $GITHUB_OUTPUT
+          fi
 
   build:
     needs: detect-affected-services
