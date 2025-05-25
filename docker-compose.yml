@@ -1,21 +1,5 @@
 version: "3.9"
 services:
-  users:
-    build:
-      context: .
-      dockerfile: services/users/Dockerfile
-    ports:
-      - "8081:8080"
-    environment:
-      - USERS_DB_URL=mongodb://mongo:27017/users
-    depends_on:
-      mongo:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 2s
-      retries: 3
 
   orders:
     build:
@@ -63,7 +47,6 @@ services:
     environment:
       - JWT_SECRET=your-256-bit-secret
     depends_on:
-      - users
       - orders
       - payments
       - auth
