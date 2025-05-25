@@ -45,7 +45,8 @@ jobs:
             echo "affected=[]" >> $GITHUB_OUTPUT
           else
             echo "Affected services: $SERVICES"
-            SERVICES_JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)
+            # Format as proper JSON array with quotes
+            SERVICES_JSON="[\"$(echo $SERVICES | sed 's/ /","/g')\"]"
             echo "affected=$SERVICES_JSON" >> $GITHUB_OUTPUT
           fi
 
