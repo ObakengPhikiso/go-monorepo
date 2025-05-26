@@ -155,7 +155,6 @@ func handleLogin(c *gin.Context) {
 			})
 			return
 		}
-		// Reset attempts if lockout period has passed
 		user.LoginAttempts = 0
 	}
 

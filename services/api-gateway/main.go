@@ -151,7 +151,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Health endpoint
 	http.HandleFunc("/health", healthHandler)
 
 	// Auth endpoints

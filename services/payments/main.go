@@ -155,7 +155,6 @@ func updatePayment(w http.ResponseWriter, r *http.Request) {
 	shared.Logger("Updated payment: %s", id)
 	w.WriteHeader(http.StatusNoContent)
 }
-
 func deletePayment(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/payments/"):]
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
