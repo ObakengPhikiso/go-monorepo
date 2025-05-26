@@ -1,8 +1,8 @@
-module github.com/ObakengPhikiso/monorepo/services/payments
+module github.com/obakengphikiso/go-monorepo/services/payments
 
 go 1.24
 
-require github.com/ObakengPhikiso/monorepo/libs/shared v0.1.0
+require github.com/obakengphikiso/go-monorepo/libs/shared v0.1.0
 
 require github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 
@@ -20,4 +20,4 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 )
 
-replace github.com/ObakengPhikiso/monorepo/libs/shared => ../../libs/shared
+replace github.com/obakengphikiso/go-monorepo/libs/shared => ../../libs/shared

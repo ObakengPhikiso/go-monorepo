@@ -1,8 +1,8 @@
-module github.com/ObakengPhikiso/monorepo/services/orders
+module github.com/obakengphikiso/go-monorepo/services/orders
 
 go 1.24
 
-require github.com/ObakengPhikiso/monorepo/libs/shared v0.1.0
+require github.com/obakengphikiso/go-monorepo/libs/shared v0.1.0
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
@@ -47,4 +47,4 @@ require (
 	golang.org/x/text v0.15.0 // indirect
 )
 
-replace github.com/ObakengPhikiso/monorepo/libs/shared => ../../libs/shared
+replace github.com/obakengphikiso/go-monorepo/libs/shared => ../../libs/shared

@@ -13,7 +13,7 @@
   ```
 - **Run a single service:**  
   ```sh
-  cd services/users
+  cd services/orders
   go run main.go
   ```
 
@@ -22,7 +22,6 @@
 - The API Gateway is available at `http://localhost:8088`
 - It proxies requests to the appropriate service:
   - `/auth/register`, `/auth/login`, `/auth/validate` → auth service
-  - `/users`, `/users/{id}` → users service
   - `/orders`, `/orders/{id}` → orders service
   - `/payments`, `/payments/{id}` → payments service
 
@@ -92,7 +91,7 @@ Payments Service: MONGODB_URL=mongodb://mongo:27017/payments
 ## Adding a New Service
 
 1. Create a new directory under `services/yourservice`.
-2. Run `go mod init github.com/ObakengPhikiso/monorepo/services/yourservice`.
+2. Run `go mod init github.com/obakengphikiso/go-monorepo/services/yourservice`.
 3. Add to `go.work`:
     ```
     use (
@@ -105,7 +104,7 @@ Payments Service: MONGODB_URL=mongodb://mongo:27017/payments
 
 ## Dependency Management
 
-- Use the shared library via `require github.com/ObakengPhikiso/monorepo/libs/shared vX.Y.Z`.
+- Use the shared library via `require github.com/obakengphikiso/go-monorepo/libs/shared vX.Y.Z`.
 - For local dev, `replace` with relative path.
 - Tag shared lib releases:  
   ```sh

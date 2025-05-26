@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,8 +10,8 @@ import (
 
 	"log"
 
-	"github.com/ObakengPhikiso/monorepo/libs/shared"
 	"github.com/gin-gonic/gin"
+	"github.com/obakengphikiso/go-monorepo/libs/shared"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -45,22 +46,17 @@ var (
 )
 
 func connectDB() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	// Use shared.GetMongoCollection for auth
 	dbURL := shared.GetEnv("AUTH_DB_URL", "mongodb://mongo:27017")
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURL))
+	coll, err := shared.GetMongoCollection(dbURL, "auth", "users")
 	if err != nil {
 		return err
 	}
+	db = coll.Database()
+	usersCollection = coll
 
-	if err := client.Ping(ctx, nil); err != nil {
-		return err
-	}
-
-	db = client.Database("auth")
-	usersCollection = db.Collection("users")
-
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	// Create unique index for username
 	_, err = usersCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "username", Value: 1}},
@@ -141,7 +137,7 @@ func handleLogin(c *gin.Context) {
 	var user User
 	err := usersCollection.FindOne(ctx, bson.M{"username": loginReq.Username}).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
 		}

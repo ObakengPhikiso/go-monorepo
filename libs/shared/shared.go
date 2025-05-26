@@ -8,7 +8,10 @@ import (
 	"os"
 	"time"
 
+	"context"
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func Version() string {
@@ -86,4 +89,15 @@ func ValidateJWT(tokenString string) (*JWTClaims, error) {
 	}
 
 	return claims, nil
+}
+
+// GetMongoCollection returns a MongoDB collection for the given DB and collection name
+func GetMongoCollection(dbURL, dbName, collectionName string) (*mongo.Collection, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURL))
+	if err != nil {
+		return nil, err
+	}
+	return client.Database(dbName).Collection(collectionName), nil
 }

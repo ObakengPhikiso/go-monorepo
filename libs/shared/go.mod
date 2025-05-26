@@ -1,4 +1,4 @@
-module github.com/ObakengPhikiso/monorepo/libs/shared
+module github.com/obakengphikiso/go-monorepo/libs/shared
 
 go 1.24
 

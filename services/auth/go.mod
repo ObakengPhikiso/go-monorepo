@@ -1,10 +1,11 @@
-module github.com/obakengphikiso/monorepo/services/auth
+module github.com/obakengphikiso/go-monorepo/services/auth
 
 go 1.24
 
+require github.com/obakengphikiso/go-monorepo/libs/shared v0.1.0
+
 require (
 	github.com/gin-gonic/gin v1.10.1
-	github.com/obakengphikiso/monorepo/libs/shared v0.0.0-00010101000000-000000000000
 	go.mongodb.org/mongo-driver v1.16.0-prerelease
 	golang.org/x/crypto v0.23.0
 )
@@ -46,4 +47,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/obakengphikiso/monorepo/libs/shared => ../../libs/shared
+replace github.com/obakengphikiso/go-monorepo/libs/shared => ../../libs/shared

@@ -7,17 +7,15 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/ObakengPhikiso/monorepo/libs/shared"
+	"github.com/obakengphikiso/go-monorepo/libs/shared"
 )
 
 // Service discovery: static lists of backend addresses
 var (
-	userBackends    = []string{"http://users:8080"}
 	orderBackends   = []string{"http://orders:8080"}
 	paymentBackends = []string{"http://payments:8080"}
 	authBackends    = []string{"http://auth:8084"}
 
-	userIdx    uint32
 	orderIdx   uint32
 	paymentIdx uint32
 	authIdx    uint32
@@ -125,7 +123,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	healthy := true
 	status := map[string]bool{
-		"users":    checkServiceHealth(userBackends[0]),
 		"orders":   checkServiceHealth(orderBackends[0]),
 		"payments": checkServiceHealth(paymentBackends[0]),
 		"auth":     checkServiceHealth(authBackends[0]),
@@ -163,11 +160,7 @@ func main() {
 	http.HandleFunc("/auth/validate", proxy(authBackends, &authIdx))
 
 	// Protected endpoints
-	http.HandleFunc("/users", proxy(userBackends, &userIdx))
-	http.HandleFunc("/users/", proxy(userBackends, &userIdx))
-	http.HandleFunc("/orders", proxy(orderBackends, &orderIdx))
 	http.HandleFunc("/orders/", proxy(orderBackends, &orderIdx))
-	http.HandleFunc("/payments", proxy(paymentBackends, &paymentIdx))
 	http.HandleFunc("/payments/", proxy(paymentBackends, &paymentIdx))
 
 	http.HandleFunc("/swagger.yaml", func(w http.ResponseWriter, r *http.Request) {

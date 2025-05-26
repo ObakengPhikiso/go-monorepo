@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ObakengPhikiso/monorepo/libs/shared"
 	"github.com/gin-gonic/gin"
+	"github.com/obakengphikiso/go-monorepo/libs/shared"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -48,22 +48,17 @@ var (
 )
 
 func connectDB() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	// Use shared.GetMongoCollection for orders
 	dbURL := shared.GetEnv("ORDERS_DB_URL", "mongodb://mongo:27017")
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURL))
+	coll, err := shared.GetMongoCollection(dbURL, "orders", "orders")
 	if err != nil {
 		return err
 	}
+	db = coll.Database()
+	ordersCollection = coll
 
-	if err := client.Ping(ctx, nil); err != nil {
-		return err
-	}
-
-	db = client.Database("orders")
-	ordersCollection = db.Collection("orders")
-
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	// Create indexes
 	_, err = ordersCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
@@ -103,7 +98,6 @@ func handleGetOrders(c *gin.Context) {
 		}
 	}
 
-	// Build query
 	query := bson.M{"user_id": userID}
 	if status != "" {
 		query["status"] = status
