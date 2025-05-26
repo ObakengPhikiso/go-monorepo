@@ -74,9 +74,9 @@ func connectDB() error {
 	return err
 }
 
-//func getUserIDFromHeader(c *gin.Context) string {
-//	return c.GetHeader("X-User-ID")
-//}
+func getUserIDFromHeader(c *gin.Context) string {
+	return c.GetHeader("X-User-ID")
+}
 
 func handleGetOrders(c *gin.Context) {
 	userID := getUserIDFromHeader(c)
